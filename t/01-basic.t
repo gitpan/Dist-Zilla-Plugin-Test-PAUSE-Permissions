@@ -2,8 +2,7 @@ use strict;
 use warnings FATAL => 'all';
 
 use Test::More;
-use if $ENV{AUTHOR_TESTING}, 'Test::Warnings';
-use Test::Warnings 0.005 ':no_end_test', ':all';
+use Test::Warnings 0.009 ':no_end_test', ':all';
 use Test::DZil;
 use Path::Tiny;
 use Safe::Isa;
@@ -26,6 +25,8 @@ use Test::PAUSE::Permissions ();
             },
         },
     );
+
+    $tzil->chrome->logger->set_debug(1);
     $tzil->build;
 
     my $build_dir = path($tzil->tempdir)->child('build');
@@ -46,8 +47,14 @@ use Test::PAUSE::Permissions ();
         allow_warnings(1);
         do $file;
         allow_warnings(0);
-        warn $@ if $@ and not $@->$_isa('Test::Builder::Exception');
+        note 'ran tests successfully', return if not $@;
+        # FIXME: it looks like newer Test::More alphas use a different class now
+        die $@ if $@->$_isa('Test::Builder::Exception');
+        fail('got exception'), local $Data::Dumper::Maxdepth = 2, diag explain $@;
     };
+
+    diag 'got log messages: ', explain $tzil->log_messages
+        if not Test::Builder->new->is_passing;
 }
 
 {
@@ -63,6 +70,8 @@ use Test::PAUSE::Permissions ();
             },
         },
     );
+
+    $tzil->chrome->logger->set_debug(1);
     $tzil->build;
 
     my $build_dir = path($tzil->tempdir)->child('build');
@@ -73,6 +82,9 @@ use Test::PAUSE::Permissions ();
     unlike($content, qr/[^\S\n]\n/m, 'no trailing whitespace in generated test');
 
     like($content, qr/^all_permissions_ok\(\);$/m, 'no username passed to test');
+
+    diag 'got log messages: ', explain $tzil->log_messages
+        if not Test::Builder->new->is_passing;
 }
 
 had_no_warnings if $ENV{AUTHOR_TESTING};
